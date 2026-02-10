@@ -134,7 +134,6 @@ def test_invalidates_when_path_in_kwargs(tmp_path):
 # Group 2: File Tracking (Literals & Globals)
 # =========================================================================
 
-@pytest.mark.xfail(reason="AST detection fails for exec'd functions (inspect.getsource)")
 def test_invalidates_when_literal_path_changes(tmp_path):
     """R: Static path detection via AST for hardcoded literal paths"""
     cache_dir = tmp_path / "cache"

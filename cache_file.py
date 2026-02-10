@@ -519,6 +519,16 @@ def cache_list(cache_dir: os.PathLike | str):
 # Recursive closure hasher (R: .get_recursive_closure_hash)
 # ============================================================================
 
+# Mutable framework globals that should NOT affect the closure hash.
+# Including these causes hash instability (e.g. _cache_tree_graph grows
+# during recursive calls, making every subcall produce a different hash).
+_HASH_EXCLUDED_GLOBALS: Set[str] = {
+    "_cache_tree_graph",
+    "_cache_tree_call_stack",
+    "_file_state_cache",
+}
+
+
 def get_recursive_closure_hash(
     obj: Any,
     visited: Optional[Dict[int, str]] = None,
@@ -602,10 +612,12 @@ def get_recursive_closure_hash(
 
     # ---------- Globals referenced by the function ----------
     for name in names:
+        if name in _HASH_EXCLUDED_GLOBALS:
+            continue
         if name in globs:
             val = globs[name]
 
-            # Skip modules (they’re covered by package version logic above)
+            # Skip modules (they're covered by package version logic above)
             if isinstance(val, types.ModuleType):
                 continue
 
@@ -667,11 +679,19 @@ def _find_path_specs(func: Callable) -> Dict[str, List[str]]:
 
     This is purely static: it never executes the function.
     """
-    # Try to get source; if we can't, just return empty specs
+    # Try to get source; if we can't, fall back to co_consts inspection
     try:
         src = inspect.getsource(func)
     except OSError:
-        return {"literals": [], "symbols": []}
+        # Fallback: inspect bytecode constants for path-like strings
+        code = getattr(func, "__code__", None)
+        if code is None:
+            return {"literals": [], "symbols": []}
+        path_literals = []
+        for c in code.co_consts:
+            if isinstance(c, str) and ("/" in c or "\\" in c) and len(c) > 1:
+                path_literals.append(c)
+        return {"literals": sorted(set(path_literals)), "symbols": []}
 
     # Dedent in case the function is nested
     src = textwrap.dedent(src)

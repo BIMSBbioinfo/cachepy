@@ -318,12 +318,13 @@ def test_new_kwarg_causes_miss(tmp_path):
 # Section H: Cross-Session Persistence
 # ============================================================================
 
-@pytest.mark.xfail(reason="not yet implemented: cross-process cache sharing")
 def test_cache_persists_across_subprocess(tmp_path):
     """R: Cache persists across separate R sessions (Disk Persistence)"""
     cache_dir = tmp_path / "cache"
+    pid_file = tmp_path / "pids.txt"
 
     # Write a script that creates and uses a cached function
+    # PIDs are recorded via side-channel (file), not inside the cached value
     script = tmp_path / "worker.py"
     script.write_text(f"""
 import sys, os, time
@@ -332,10 +333,13 @@ from cachepy import cache_file
 
 @cache_file("{cache_dir}", backend="rds")
 def f(x):
-    return {{"val": x * 2, "run_id": time.time(), "pid": os.getpid()}}
+    return {{"val": x * 2, "run_id": time.time()}}
 
 import json
 result = f(10)
+# Record PID via side-channel
+with open("{pid_file}", "a") as pf:
+    pf.write(str(os.getpid()) + "\\n")
 print(json.dumps(result))
 """)
 
@@ -344,7 +348,7 @@ print(json.dumps(result))
         [sys.executable, str(script)],
         capture_output=True, text=True, cwd=str(Path.cwd()),
     )
-    assert r1.returncode == 0
+    assert r1.returncode == 0, r1.stderr
     import json
     res1 = json.loads(r1.stdout.strip())
 
@@ -353,11 +357,15 @@ print(json.dumps(result))
         [sys.executable, str(script)],
         capture_output=True, text=True, cwd=str(Path.cwd()),
     )
-    assert r2.returncode == 0
+    assert r2.returncode == 0, r2.stderr
     res2 = json.loads(r2.stdout.strip())
 
-    # Different PIDs but same cached result
-    assert res1["pid"] != res2["pid"]
+    # Verify different processes via side-channel
+    pids = pid_file.read_text().strip().split("\n")
+    assert len(pids) == 2
+    assert pids[0] != pids[1]
+
+    # Same cached result (run_id matches = cache hit in process 2)
     assert res1["run_id"] == res2["run_id"]
 
 
@@ -508,7 +516,6 @@ def test_recursive_fibonacci(tmp_path):
     assert fib(10) == 55
 
 
-@pytest.mark.xfail(reason="not yet implemented: recursive subcall caching verification")
 def test_recursive_uses_cache_for_subcalls(tmp_path):
     """R: recursive cached function uses cache for repeated subcalls"""
     cache_dir = tmp_path / "cache"
