@@ -8,3 +8,4 @@ build/
 .eggs/
 .cacheR/
 demo_cache/
+*.html

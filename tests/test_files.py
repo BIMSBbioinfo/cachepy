@@ -58,7 +58,7 @@ def test_invalidates_when_arg_path_files_change(tmp_path):
     input_dir.mkdir()
     (input_dir / "file1.txt").touch()
 
-    @cache_file(cache_dir=cache_dir, file_args=["path"], backend="rds")
+    @cache_file(cache_dir=cache_dir, file_args=["path"], backend="pickle")
     def count_files(path):
         return len(list(Path(path).iterdir()))
 
@@ -78,7 +78,7 @@ def test_stable_when_file_counts_same(tmp_path):
     (input_dir / "a.txt").touch()
     (input_dir / "b.txt").touch()
 
-    @cache_file(cache_dir=cache_dir, backend="rds")
+    @cache_file(cache_dir=cache_dir, backend="pickle")
     def list_str(path):
         files = sorted(os.listdir(path))
         return ",".join(files)
@@ -98,7 +98,7 @@ def test_invalidates_with_imported_alias(tmp_path):
     input_dir.mkdir()
     (input_dir / "file1.txt").touch()
 
-    @cache_file(cache_dir=cache_dir, backend="rds")
+    @cache_file(cache_dir=cache_dir, backend="pickle")
     def count_alias(path):
         from os import listdir
         return len(listdir(path))
@@ -118,7 +118,7 @@ def test_invalidates_when_path_in_kwargs(tmp_path):
     input_dir.mkdir()
     (input_dir / "file1.txt").touch()
 
-    @cache_file(cache_dir=cache_dir, file_args=["path"], backend="rds")
+    @cache_file(cache_dir=cache_dir, file_args=["path"], backend="pickle")
     def fun(path):
         return len(os.listdir(path))
 
@@ -150,7 +150,7 @@ def count_static():
     exec(func_code, namespace)
     raw_fun = namespace["count_static"]
 
-    cached_fun = cache_file(cache_dir=cache_dir, backend="rds")(raw_fun)
+    cached_fun = cache_file(cache_dir=cache_dir, backend="pickle")(raw_fun)
 
     n1 = cached_fun()
     assert n1 == 1
@@ -171,7 +171,7 @@ def test_invalidates_when_global_variable_path_changes(tmp_path):
         return len(os.listdir(GLOBAL_DIR))
 
     raw_fun.__globals__["GLOBAL_DIR"] = str(global_dir)
-    cached_fun = cache_file(cache_dir=cache_dir, backend="rds")(raw_fun)
+    cached_fun = cache_file(cache_dir=cache_dir, backend="pickle")(raw_fun)
 
     (global_dir / "file1.txt").touch()
     n1 = cached_fun()
@@ -193,7 +193,7 @@ def test_scans_all_args_implicitly(tmp_path):
     extra_dir.mkdir()
     (extra_dir / "initial.txt").touch()
 
-    @cache_file(cache_dir=cache_dir, backend="rds")
+    @cache_file(cache_dir=cache_dir, backend="pickle")
     def fun(primary, secondary):
         return f"{primary}-{secondary}"
 
@@ -212,7 +212,7 @@ def test_non_file_strings_ignored(tmp_path):
     """R: Safety: Non-file strings are ignored (no crash)"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir=cache_dir, backend="rds")
+    @cache_file(cache_dir=cache_dir, backend="pickle")
     def f(mode, label):
         return f"{mode}-{label}"
 
@@ -236,7 +236,7 @@ def test_normalizes_relative_paths(tmp_path):
     data_dir.mkdir()
     (data_dir / "file.txt").touch()
 
-    @cache_file(cache_dir=cache_dir, backend="rds")
+    @cache_file(cache_dir=cache_dir, backend="pickle")
     def count_rel(path):
         return len(os.listdir(path))
 
@@ -291,7 +291,7 @@ def test_symbol_path_skips_non_directories(tmp_path):
         os.listdir(not_a_dir)
 
     func_with_ignored_symbol.__globals__["not_a_dir"] = "I am just a string"
-    cached = cache_file(cache_dir=cache_dir, backend="rds")(func_with_ignored_symbol)
+    cached = cache_file(cache_dir=cache_dir, backend="pickle")(func_with_ignored_symbol)
 
     try:
         cached()
@@ -308,7 +308,7 @@ def test_handles_non_character_symbols_in_specs(tmp_path):
         return join(base, "subdir")
 
     path_join_user.__globals__["join"] = os.path.join
-    cached_fun = cache_file(cache_dir=cache_dir, backend="rds")(path_join_user)
+    cached_fun = cache_file(cache_dir=cache_dir, backend="pickle")(path_join_user)
 
     res = cached_fun("root")
     assert res == os.path.join("root", "subdir")
@@ -334,7 +334,7 @@ def test_deseq2_like_execution(tmp_path):
     """Caching works for functions returning complex dicts."""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir=cache_dir, backend="rds")
+    @cache_file(cache_dir=cache_dir, backend="pickle")
     def dds_analysis(counts, samples):
         return {"matrix": [c * 2 for c in counts], "meta": samples}
 
@@ -358,7 +358,7 @@ def test_touch_no_invalidation(tmp_path):
     data_file = tmp_path / "input.txt"
     data_file.write_text("hello world")
 
-    @cache_file(cache_dir, file_args=["fpath"], backend="rds")
+    @cache_file(cache_dir, file_args=["fpath"], backend="pickle")
     def f(fpath):
         return {"content": Path(fpath).read_text(), "run_id": time.time()}
 
@@ -379,7 +379,7 @@ def test_content_change_same_size_invalidates(tmp_path):
     data_file = tmp_path / "input.txt"
     data_file.write_text("AAAA")
 
-    @cache_file(cache_dir, file_args=["fpath"], backend="rds")
+    @cache_file(cache_dir, file_args=["fpath"], backend="pickle")
     def f(fpath):
         return {"content": Path(fpath).read_text(), "run_id": time.time()}
 
@@ -406,7 +406,7 @@ def test_large_file_header_sampling(tmp_path):
     data = bytearray(200 * 1024)
     large_file.write_bytes(bytes(data))
 
-    @cache_file(cache_dir, file_args=["fpath"], backend="rds")
+    @cache_file(cache_dir, file_args=["fpath"], backend="pickle")
     def f(fpath):
         return {"size": Path(fpath).stat().st_size, "run_id": time.time()}
 
@@ -449,7 +449,7 @@ def test_dir_rename_detection(tmp_path):
     data_dir.mkdir()
     (data_dir / "original.txt").write_text("content")
 
-    @cache_file(cache_dir, file_args=["d"], backend="rds")
+    @cache_file(cache_dir, file_args=["d"], backend="pickle")
     def f(d):
         return {"files": sorted(os.listdir(d)), "run_id": time.time()}
 
@@ -472,7 +472,7 @@ def test_nested_list_file_paths(tmp_path):
     f1 = tmp_path / "file1.txt"
     f1.write_text("A")
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(paths):
         return Path(paths[0]).read_text()
 
@@ -495,7 +495,7 @@ def test_vector_file_paths(tmp_path):
     f1.write_text("A")
     f2.write_text("B")
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(path1, path2):
         return Path(path1).read_text() + Path(path2).read_text()
 
@@ -519,7 +519,7 @@ def test_vector_dir_paths(tmp_path):
     (dir1 / "a.txt").touch()
     (dir2 / "b.txt").touch()
 
-    @cache_file(cache_dir, file_args=["d1", "d2"], backend="rds")
+    @cache_file(cache_dir, file_args=["d1", "d2"], backend="pickle")
     def f(d1, d2):
         return len(os.listdir(d1)) + len(os.listdir(d2))
 
@@ -546,7 +546,7 @@ def test_symlinks_resolved(tmp_path):
     link = tmp_path / "link.txt"
     link.symlink_to(target)
 
-    @cache_file(cache_dir, file_args=["fpath"], backend="rds")
+    @cache_file(cache_dir, file_args=["fpath"], backend="pickle")
     def f(fpath):
         return {"content": Path(fpath).read_text(), "run_id": time.time()}
 
@@ -582,7 +582,7 @@ def test_hash_file_paths_control(tmp_path):
     (dir2 / "data.txt").write_text("same content")
 
     # With hash_file_paths=True (default): location matters
-    @cache_file(cache_dir, file_args=["d"], backend="rds", hash_file_paths=True)
+    @cache_file(cache_dir, file_args=["d"], backend="pickle", hash_file_paths=True)
     def f_strict(d):
         return Path(d).read_text()
 
@@ -593,7 +593,7 @@ def test_hash_file_paths_control(tmp_path):
     # With hash_file_paths=False: only content matters
     cache_dir2 = tmp_path / "cache2"
 
-    @cache_file(cache_dir2, file_args=["d"], backend="rds", hash_file_paths=False)
+    @cache_file(cache_dir2, file_args=["d"], backend="pickle", hash_file_paths=False)
     def f_portable(d):
         return Path(d).read_text()
 
@@ -612,7 +612,7 @@ def test_file_modified_during_execution_warning(tmp_path):
     data_file = tmp_path / "input.txt"
     data_file.write_text("original")
 
-    @cache_file(cache_dir, file_args=["fpath"], backend="rds")
+    @cache_file(cache_dir, file_args=["fpath"], backend="pickle")
     def f(fpath):
         # Modify the input file during execution
         Path(fpath).write_text("modified")

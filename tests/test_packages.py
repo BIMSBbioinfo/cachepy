@@ -61,10 +61,10 @@ def test_stores_pkgs_metadata_for_imported_modules(tmp_path, mock_pkg_cleanup):
 
     mock_pkg_cleanup("digest_lib", "0.6.29")
 
-    cached = cache_file(cache_dir=cache_dir, backend="rds")(_module_level_pkg_user)
+    cached = cache_file(cache_dir=cache_dir, backend="pickle")(_module_level_pkg_user)
     cached(1)
 
-    files = list(cache_dir.glob("*.rds"))
+    files = list(cache_dir.glob("*.pkl"))
     assert len(files) == 1
 
     with open(files[0], "rb") as f:
@@ -82,7 +82,7 @@ def test_hash_changes_when_pkg_version_changes(tmp_path, mock_pkg_cleanup):
 
     mock_pkg_cleanup("fakepkg", "1.0.0")
 
-    @cache_file(cache_dir=cache_dir, backend="rds")
+    @cache_file(cache_dir=cache_dir, backend="pickle")
     def process_data(x):
         import fakepkg
         return x + 1
@@ -100,13 +100,13 @@ def test_pkgs_metadata_is_empty_for_builtins(tmp_path):
     """R: cacheFile pkgs metadata is empty for builtin-only functions"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir=cache_dir, backend="rds")
+    @cache_file(cache_dir=cache_dir, backend="pickle")
     def simple_math(x):
         return sum(range(x))
 
     simple_math(5)
 
-    files = list(cache_dir.glob("*.rds"))
+    files = list(cache_dir.glob("*.pkl"))
     assert len(files) == 1
 
     with open(files[0], "rb") as f:
@@ -124,7 +124,7 @@ def test_captures_multiple_packages(tmp_path, mock_pkg_cleanup):
     mock_pkg_cleanup("pkgA", "1.0")
     mock_pkg_cleanup("pkgB", "2.0")
 
-    @cache_file(cache_dir=cache_dir, backend="rds")
+    @cache_file(cache_dir=cache_dir, backend="pickle")
     def multi_dep_fun(x):
         import pkgA
         import pkgB
@@ -132,7 +132,7 @@ def test_captures_multiple_packages(tmp_path, mock_pkg_cleanup):
 
     multi_dep_fun(100)
 
-    files = list(cache_dir.glob("*.rds"))
+    files = list(cache_dir.glob("*.pkl"))
     assert len(files) == 1
 
     with open(files[0], "rb") as f:
@@ -153,10 +153,10 @@ def test_detects_global_imports(tmp_path, mock_pkg_cleanup):
 
     my_fun.__globals__["global_lib"] = sys.modules["global_lib"]
 
-    cached_fun = cache_file(cache_dir=cache_dir, backend="rds")(my_fun)
+    cached_fun = cache_file(cache_dir=cache_dir, backend="pickle")(my_fun)
     cached_fun(1)
 
-    files = list(cache_dir.glob("*.rds"))
+    files = list(cache_dir.glob("*.pkl"))
     assert len(files) == 1
 
     with open(files[0], "rb") as f:

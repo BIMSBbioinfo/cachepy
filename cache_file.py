@@ -354,10 +354,7 @@ def cache_prune(cache_dir: os.PathLike | str, days_old: int = 30) -> None:
     cutoff_sec = time.time() - days_old * 24 * 3600
     to_delete: List[Path] = []
 
-    for p in cache_dir.glob("*.rds"):
-        if p.stat().st_mtime < cutoff_sec:
-            to_delete.append(p)
-    for p in cache_dir.glob("*.qs"):
+    for p in cache_dir.glob("*.pkl"):
         if p.stat().st_mtime < cutoff_sec:
             to_delete.append(p)
 
@@ -388,7 +385,7 @@ _FILE_STATE_CACHE_LIMIT = 500
 def cache_stats(cache_dir: os.PathLike | str) -> Dict[str, Any]:
     """
     Return aggregate statistics for a cache directory.
-    Excludes graph.rds from counts.
+    Excludes graph.pkl from counts.
     """
     cache_dir = Path(cache_dir)
     if not cache_dir.exists():
@@ -397,7 +394,7 @@ def cache_stats(cache_dir: os.PathLike | str) -> Dict[str, Any]:
     files = [
         p for p in cache_dir.iterdir()
         if p.is_file()
-        and re.search(r"\.(rds|qs)$", p.name)
+        and p.name.endswith(".pkl")
         and not p.name.startswith("graph.")
     ]
 
@@ -489,7 +486,7 @@ def cache_list(cache_dir: os.PathLike | str):
     if not cache_dir.exists():
         return []
 
-    files = list(cache_dir.glob("*.rds"))
+    files = list(cache_dir.glob("*.pkl"))
     if not files:
         return []
 
@@ -854,7 +851,7 @@ def _get_package_versions(import_names: Set[str], func: Callable) -> Dict[str, s
 
 def cache_file(
     cache_dir: Optional[os.PathLike | str] = None,
-    backend: str = "rds",
+    backend: str = "pickle",
     file_args: Optional[List[str]] = None,
     ignore_args: Optional[List[str]] = None,
     file_pattern: Optional[str] = None,
@@ -891,8 +888,9 @@ def cache_file(
 
     cache_dir_path = cache_dir_path.resolve()
     backend = backend.lower()
-    if backend not in {"rds", "qs"}:
-        raise ValueError("backend must be 'rds' or 'qs'")
+    if backend not in {"pickle"}:
+        raise ValueError("backend must be 'pickle'")
+    ext = "pkl"
 
     # static path specs from function body (stubbed for now)
     path_specs = _find_path_specs  # function; we will call inside decorator
@@ -1093,7 +1091,7 @@ def cache_file(
             }
 
             args_hash = _digest_obj(hashlist, algo=algo)
-            outfile = cache_dir_path / f"{fname}.{args_hash}.{backend}"
+            outfile = cache_dir_path / f"{fname}.{args_hash}.{ext}"
 
             # -------- register node in cache tree --------
             node_id = f"{fname}:{args_hash}"
@@ -1118,7 +1116,7 @@ def cache_file(
                         logger.info("[%s] forced re-execution", fname)
                     else:
                         # Check if any cache files exist for this function
-                        existing = list(cache_dir_path.glob(f"{fname}.*.{backend}"))
+                        existing = list(cache_dir_path.glob(f"{fname}.*.{ext}"))
                         if not existing:
                             logger.info("[%s] first execution", fname)
                         else:

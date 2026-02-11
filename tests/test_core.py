@@ -41,7 +41,7 @@ def test_basic_caching_behavior(tmp_path):
     cache_dir = tmp_path / "cache"
 
     # Use attribute on wrapper to avoid closure hash instability
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         f.run_count += 1
         return x * 2
@@ -64,7 +64,7 @@ def test_caches_results_avoids_rerunning(tmp_path):
     """R: cacheFile caches results and avoids re-running (time-based)"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return {"val": x * 2, "run_id": time.time()}
 
@@ -98,7 +98,7 @@ def test_tracks_multiple_dir_arguments(tmp_path):
     (dir1 / "a.txt").write_text("a")
     (dir2 / "b.txt").write_text("b")
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(path1, path2):
         return sum(len(list(Path(p).iterdir())) for p in [path1, path2])
 
@@ -114,7 +114,7 @@ def test_handles_arguments_that_fail_to_evaluate(tmp_path):
     """R: cacheFile handles arguments that fail to evaluate"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return x
 
@@ -132,7 +132,7 @@ def test_implicit_defaults_equal_explicit(tmp_path):
     """R: cacheFile treats implicit defaults equal to explicit values"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(a, b=10):
         return a + b
 
@@ -159,7 +159,7 @@ def test_mtime_change_detects_modification(tmp_path):
     data_file = tmp_path / "input.csv"
     data_file.write_text("col1\n1\n")
 
-    @cache_file(cache_dir, file_args=["fpath"], backend="rds")
+    @cache_file(cache_dir, file_args=["fpath"], backend="pickle")
     def f(fpath):
         return Path(fpath).read_text().splitlines()
 
@@ -179,7 +179,7 @@ def test_empty_directory_handling(tmp_path):
     empty_dir = tmp_path / "empty"
     empty_dir.mkdir()
 
-    @cache_file(cache_dir, file_args=["d"], backend="rds")
+    @cache_file(cache_dir, file_args=["d"], backend="pickle")
     def f(d):
         return d
 
@@ -202,7 +202,7 @@ def test_env_vars_invalidate_cache(tmp_path):
 
     os.environ["TEST_CACHE_VAR"] = "A"
 
-    @cache_file(cache_dir, env_vars=["TEST_CACHE_VAR"], backend="rds")
+    @cache_file(cache_dir, env_vars=["TEST_CACHE_VAR"], backend="pickle")
     def f(x):
         return x
 
@@ -222,29 +222,28 @@ def test_env_vars_invalidate_cache(tmp_path):
 # ============================================================================
 
 def test_backend_selection(tmp_path):
-    """R: backend selection works"""
+    """Backend selection works with pickle"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
-    def f_rds(x):
+    @cache_file(cache_dir, backend="pickle")
+    def f_pkl(x):
         return x
 
-    f_rds(1)
-    assert any(p.suffix == ".rds" for p in cache_dir.iterdir())
+    f_pkl(1)
+    assert any(p.suffix == ".pkl" for p in cache_dir.iterdir())
 
-    @cache_file(cache_dir, backend="qs")
-    def f_qs(x):
-        return x
-
-    f_qs(2)
-    assert any(p.suffix == ".qs" for p in cache_dir.iterdir())
+    # Invalid backend raises
+    with pytest.raises(ValueError, match="pickle"):
+        @cache_file(cache_dir, backend="rds")
+        def f_bad(x):
+            return x
 
 
 def test_xxhash64_produces_valid_filenames(tmp_path):
     """R: xxhash64 backend works and produces valid filenames"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, algo="xxhash64", backend="rds")
+    @cache_file(cache_dir, algo="xxhash64", backend="pickle")
     def f(x):
         return x
 
@@ -263,7 +262,7 @@ def test_value_change_invalidates_cache(tmp_path):
     """R: Cache invalidates when VALUES change (even if expression is same)"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return {"val": x, "run_id": time.time()}
 
@@ -288,7 +287,7 @@ def test_kwargs_order_independent(tmp_path):
     """R: Dots (...) are order-independent (sorted by name)"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(**kwargs):
         return {"val": sum(kwargs.values()), "run_id": time.time()}
 
@@ -303,7 +302,7 @@ def test_new_kwarg_causes_miss(tmp_path):
     """R: Dots (...) detect new arguments"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(**kwargs):
         return {"val": sum(kwargs.values()), "run_id": time.time()}
 
@@ -331,7 +330,7 @@ import sys, os, time
 sys.path.insert(0, os.path.abspath('.'))
 from cachepy import cache_file
 
-@cache_file("{cache_dir}", backend="rds")
+@cache_file("{cache_dir}", backend="pickle")
 def f(x):
     return {{"val": x * 2, "run_id": time.time()}}
 
@@ -377,7 +376,7 @@ def test_body_change_invalidates_cache(tmp_path):
     """R: body change still invalidates cache after AST hashing"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return x * 2
 
@@ -385,7 +384,7 @@ def test_body_change_invalidates_cache(tmp_path):
     assert count_cache_entries(cache_dir) == 1
 
     # Redefine with different body
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return x * 3
 
@@ -406,7 +405,7 @@ def test_default_with_closure_variable(tmp_path):
     cache_dir = tmp_path / "cache"
     multiplier = 10
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(a, b=None):
         if b is None:
             b = a * multiplier
@@ -470,7 +469,7 @@ def test_none_return_is_cached(tmp_path):
     counter_file = tmp_path / "counter.txt"
     counter_file.write_text("0")
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         n = int(counter_file.read_text()) + 1
         counter_file.write_text(str(n))
@@ -490,7 +489,7 @@ def test_none_with_different_args_separate_entries(tmp_path):
     """R: function returning NULL with different args creates separate entries"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return None
 
@@ -507,7 +506,7 @@ def test_recursive_fibonacci(tmp_path):
     """R: recursive cached function produces correct results"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def fib(n):
         if n <= 1:
             return n
@@ -522,7 +521,7 @@ def test_recursive_uses_cache_for_subcalls(tmp_path):
     counter_file = tmp_path / "counter.txt"
     counter_file.write_text("0")
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def fib(n):
         c = int(counter_file.read_text()) + 1
         counter_file.write_text(str(c))
@@ -546,7 +545,7 @@ def test_call_stack_clean_after_recursion(tmp_path):
     """R: call stack is properly maintained during recursion"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def fib(n):
         if n <= 1:
             return n
@@ -564,7 +563,7 @@ def test_positional_and_named_same_cache(tmp_path):
     """R: positional and named args hit same cache entry"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(a, b):
         return {"val": a + b, "run_id": time.time()}
 
@@ -579,7 +578,7 @@ def test_mixed_positional_named_same_cache(tmp_path):
     """R: mixed positional and named args hit same cache"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(a, b, c):
         return {"val": a + b + c, "run_id": time.time()}
 
@@ -594,7 +593,7 @@ def test_reversed_named_same_cache(tmp_path):
     """R: reversed named args hit same cache as positional"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(a, b):
         return {"val": a + b, "run_id": time.time()}
 
@@ -613,7 +612,7 @@ def test_graph_node_removed_on_error_disk(tmp_path):
     """R: removes graph node from disk when function errors"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         raise ValueError("intentional error")
 
@@ -628,7 +627,7 @@ def test_graph_node_removed_on_error_memory(tmp_path):
     """R: removes graph node from memory when function errors"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         raise ValueError("intentional error")
 
@@ -642,7 +641,7 @@ def test_graph_node_preserved_on_success(tmp_path):
     """R: preserves graph node when function succeeds"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return x * 2
 
@@ -661,9 +660,9 @@ def test_prune_removes_lock_and_tmp(tmp_path):
     cache_dir.mkdir()
 
     # Create stale lock and tmp files
-    (cache_dir / "func.abc123.rds.lock").touch()
-    (cache_dir / "func.abc123.rds.tmp.xyz").touch()
-    (cache_dir / "func.abc123.rds").touch()
+    (cache_dir / "func.abc123.pkl.lock").touch()
+    (cache_dir / "func.abc123.pkl.tmp.xyz").touch()
+    (cache_dir / "func.abc123.pkl").touch()
 
     lock_count = len(list(cache_dir.glob("*.lock")))
     tmp_count = len(list(cache_dir.glob("*.tmp.*")))
@@ -681,7 +680,7 @@ def test_prune_keeps_recent_files(tmp_path):
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
 
-    recent = cache_dir / "func.abc.rds"
+    recent = cache_dir / "func.abc.pkl"
     recent.touch()
 
     cache_prune(cache_dir, days_old=30)
@@ -758,11 +757,11 @@ def test_graph_save_load_roundtrip(tmp_path):
     """R: round-trips graph nodes through save/load"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return x + 1
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def g(x):
         return f(x) * 2
 
@@ -790,7 +789,7 @@ def test_cache_stats_aggregate(tmp_path):
     """R: cache_stats returns correct aggregate statistics"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return x * 2
 
@@ -807,12 +806,12 @@ def test_cache_stats_aggregate(tmp_path):
 
 
 def test_cache_stats_excludes_graph(tmp_path):
-    """R: cache_stats excludes graph.rds"""
+    """R: cache_stats excludes graph.pkl"""
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
 
     # Create only a graph file
-    (cache_dir / "graph.rds").touch()
+    (cache_dir / "graph.pkl").touch()
 
     from cachepy.cache_file import cache_stats
 
@@ -836,7 +835,7 @@ def test_verbose_first_execution(tmp_path, caplog):
     """R: verbose mode reports 'first execution' on first call"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds", verbose=True)
+    @cache_file(cache_dir, backend="pickle", verbose=True)
     def f(x):
         return x
 
@@ -850,7 +849,7 @@ def test_verbose_reports_changed_component(tmp_path, caplog):
     """R: verbose mode reports which component changed on miss"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds", verbose=True)
+    @cache_file(cache_dir, backend="pickle", verbose=True)
     def f(x):
         return x
 
@@ -865,7 +864,7 @@ def test_verbose_silent_when_disabled(tmp_path, caplog):
     """R: verbose mode is silent when option is not set"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return x
 
@@ -884,7 +883,7 @@ def test_config_loads_from_yaml(tmp_path):
     config_path = tmp_path / ".cachepy.yml"
     config_path.write_text(
         "cache_dir: /tmp/test_cache\n"
-        "backend: rds\n"
+        "backend: pickle\n"
         "verbose: true\n"
         "env_vars:\n"
         "  - HOME\n"
@@ -894,7 +893,7 @@ def test_config_loads_from_yaml(tmp_path):
     from cachepy.cache_file import load_config
 
     config = load_config(config_path)
-    assert config["backend"] == "rds"
+    assert config["backend"] == "pickle"
     assert config["verbose"] is True
     assert "HOME" in config["env_vars"]
 
@@ -902,14 +901,14 @@ def test_config_loads_from_yaml(tmp_path):
 def test_config_does_not_override_existing(tmp_path):
     """R: .load_cacheR_config does not override existing options"""
     config_path = tmp_path / ".cachepy.yml"
-    config_path.write_text("backend: qs\n")
+    config_path.write_text("backend: cloudpickle\n")
 
     from cachepy.cache_file import load_config
 
     # Pre-set config
-    existing = {"backend": "rds"}
+    existing = {"backend": "pickle"}
     config = load_config(config_path, existing=existing)
-    assert config["backend"] == "rds"  # Not overridden
+    assert config["backend"] == "pickle"  # Not overridden
 
 
 def test_env_vars_from_config(tmp_path):
@@ -918,14 +917,14 @@ def test_env_vars_from_config(tmp_path):
 
     os.environ["TEST_CFG_VAR"] = "val1"
 
-    @cache_file(cache_dir, backend="rds", env_vars=["TEST_CFG_VAR"])
+    @cache_file(cache_dir, backend="pickle", env_vars=["TEST_CFG_VAR"])
     def f(x):
         return x
 
     f(1)
 
     # Check that env var is stored in metadata
-    files = list(cache_dir.glob("*.rds"))
+    files = list(cache_dir.glob("*.pkl"))
     assert len(files) >= 1
 
     os.environ.pop("TEST_CFG_VAR", None)
@@ -945,7 +944,7 @@ def test_warns_on_non_writable_dir(tmp_path):
     os.chmod(cache_dir, 0o555)
 
     try:
-        @cache_file(cache_dir, backend="rds")
+        @cache_file(cache_dir, backend="pickle")
         def f(x):
             return x * 2
 
@@ -963,16 +962,16 @@ def test_warns_on_corrupt_cache_file(tmp_path):
     """R: warning on corrupt cache file during load"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return x + 1
 
     f(100)
 
     # Corrupt the cache file
-    rds_files = list(cache_dir.glob("*.rds"))
-    assert len(rds_files) == 1
-    rds_files[0].write_bytes(b"CORRUPT")
+    pkl_files = list(cache_dir.glob("*.pkl"))
+    assert len(pkl_files) == 1
+    pkl_files[0].write_bytes(b"CORRUPT")
 
     # Should warn but re-execute and return correct result
     result = f(100)
@@ -989,7 +988,7 @@ def test_force_reexecutes(tmp_path):
     counter_file = tmp_path / "counter.txt"
     counter_file.write_text("0")
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         n = int(counter_file.read_text()) + 1
         counter_file.write_text(str(n))
@@ -1011,7 +1010,7 @@ def test_skip_save_no_write(tmp_path):
     """R: .skip_save = TRUE does not write cache file on miss"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return x * 2
 
@@ -1027,7 +1026,7 @@ def test_force_and_skip_save_combined(tmp_path):
     counter_file = tmp_path / "counter.txt"
     counter_file.write_text("0")
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         n = int(counter_file.read_text()) + 1
         counter_file.write_text(str(n))
@@ -1052,7 +1051,7 @@ def test_version_same_hits_cache(tmp_path):
     counter_file = tmp_path / "counter.txt"
     counter_file.write_text("0")
 
-    @cache_file(cache_dir, backend="rds", version="1.0")
+    @cache_file(cache_dir, backend="pickle", version="1.0")
     def f(x):
         n = int(counter_file.read_text()) + 1
         counter_file.write_text(str(n))
@@ -1071,7 +1070,7 @@ def test_version_different_misses(tmp_path):
     counter_file = tmp_path / "counter.txt"
     counter_file.write_text("0")
 
-    @cache_file(cache_dir, backend="rds", version="1.0")
+    @cache_file(cache_dir, backend="pickle", version="1.0")
     def f_v1(x):
         n = int(counter_file.read_text()) + 1
         counter_file.write_text(str(n))
@@ -1080,7 +1079,7 @@ def test_version_different_misses(tmp_path):
     f_v1(5)
     assert int(counter_file.read_text()) == 1
 
-    @cache_file(cache_dir, backend="rds", version="2.0")
+    @cache_file(cache_dir, backend="pickle", version="2.0")
     def f_v2(x):
         n = int(counter_file.read_text()) + 1
         counter_file.write_text(str(n))
@@ -1096,7 +1095,7 @@ def test_version_none_default(tmp_path):
     counter_file = tmp_path / "counter.txt"
     counter_file.write_text("0")
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         n = int(counter_file.read_text()) + 1
         counter_file.write_text(str(n))
@@ -1120,7 +1119,7 @@ def test_depends_on_files(tmp_path):
     counter_file = tmp_path / "counter.txt"
     counter_file.write_text("0")
 
-    @cache_file(cache_dir, backend="rds", depends_on_files=[str(dep_file)])
+    @cache_file(cache_dir, backend="pickle", depends_on_files=[str(dep_file)])
     def f(x):
         n = int(counter_file.read_text()) + 1
         counter_file.write_text(str(n))
@@ -1145,7 +1144,7 @@ def test_depends_on_vars(tmp_path):
     counter_file = tmp_path / "counter.txt"
     counter_file.write_text("0")
 
-    @cache_file(cache_dir, backend="rds", depends_on_vars={"schema": "v3"})
+    @cache_file(cache_dir, backend="pickle", depends_on_vars={"schema": "v3"})
     def f(x):
         n = int(counter_file.read_text()) + 1
         counter_file.write_text(str(n))
@@ -1157,7 +1156,7 @@ def test_depends_on_vars(tmp_path):
     f(5)
     assert int(counter_file.read_text()) == 1  # Hit
 
-    @cache_file(cache_dir, backend="rds", depends_on_vars={"schema": "v4"})
+    @cache_file(cache_dir, backend="pickle", depends_on_vars={"schema": "v4"})
     def f2(x):
         n = int(counter_file.read_text()) + 1
         counter_file.write_text(str(n))
@@ -1173,7 +1172,7 @@ def test_depends_on_null_defaults(tmp_path):
     counter_file = tmp_path / "counter.txt"
     counter_file.write_text("0")
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         n = int(counter_file.read_text()) + 1
         counter_file.write_text(str(n))
@@ -1194,7 +1193,7 @@ def test_sentinel_lifecycle(tmp_path):
     cache_dir.mkdir()
     sentinel_seen = {"value": False}
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         # Check for sentinel during execution
         computing_files = list(cache_dir.glob("*.computing"))
@@ -1214,12 +1213,12 @@ def test_sentinel_parallel_wait(tmp_path):
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return x * 10
 
     # Create a sentinel manually
-    sentinel = cache_dir / "f.fakehash.rds.computing"
+    sentinel = cache_dir / "f.fakehash.pkl.computing"
     sentinel.touch()
 
     # In a background process, create the cache file after a delay
@@ -1239,14 +1238,14 @@ def test_stale_sentinel_ignored(tmp_path):
     counter_file = tmp_path / "counter.txt"
     counter_file.write_text("0")
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         n = int(counter_file.read_text()) + 1
         counter_file.write_text(str(n))
         return x * 2
 
     # Create a stale sentinel (backdated 2 hours)
-    sentinel = cache_dir / "f.fakehash.rds.computing"
+    sentinel = cache_dir / "f.fakehash.pkl.computing"
     sentinel.touch()
     stale_time = time.time() - 7200  # 2 hours ago
     os.utime(sentinel, (stale_time, stale_time))
@@ -1261,8 +1260,8 @@ def test_prune_cleans_sentinels(tmp_path):
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
 
-    (cache_dir / "f.abc.rds.computing").touch()
-    (cache_dir / "g.def.rds.computing").touch()
+    (cache_dir / "f.abc.pkl.computing").touch()
+    (cache_dir / "g.def.pkl.computing").touch()
 
     assert len(list(cache_dir.glob("*.computing"))) == 2
 
@@ -1279,12 +1278,12 @@ def test_file_locking_runs_without_error(tmp_path):
     """R: file locking logic runs without error"""
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         return x + 1
 
     result = f(1)
     assert result == 2
 
-    rds_files = [p for p in cache_dir.iterdir() if p.suffix == ".rds"]
-    assert len(rds_files) == 1
+    pkl_files = [p for p in cache_dir.iterdir() if p.suffix == ".pkl"]
+    assert len(pkl_files) == 1

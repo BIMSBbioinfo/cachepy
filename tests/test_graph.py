@@ -62,13 +62,13 @@ def test_cache_tree_reset_clears_environment():
 def test_node_registration_and_edge_creation():
     """R: Node registration works and handles parent-child linking"""
     # Register node A
-    _cache_tree_register_node("A", "func_a", "hash_a", Path("/tmp/a.rds"))
+    _cache_tree_register_node("A", "func_a", "hash_a", Path("/tmp/a.pkl"))
 
     # Push A onto call stack to make it the parent
     _cache_tree_call_stack.append("A")
 
     # Register node B (child of A)
-    _cache_tree_register_node("B", "func_b", "hash_b", Path("/tmp/b.rds"))
+    _cache_tree_register_node("B", "func_b", "hash_b", Path("/tmp/b.pkl"))
 
     _cache_tree_call_stack.pop()
 
@@ -82,7 +82,7 @@ def test_node_registration_and_edge_creation():
 def test_save_load_preserves_structure(tmp_path):
     """R: cacheTree_save and cacheTree_load preserve structure"""
     # Register a node
-    _cache_tree_register_node("N1", "f1", "h1", Path("/tmp/n1.rds"))
+    _cache_tree_register_node("N1", "f1", "h1", Path("/tmp/n1.pkl"))
 
     nodes_before = cache_tree_nodes()
     assert "N1" in nodes_before
@@ -148,7 +148,7 @@ def test_track_file_associates_with_node(tmp_path):
 
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         track_file(tf)
         return x
@@ -174,7 +174,7 @@ def test_cache_tree_for_file(tmp_path):
 
     cache_dir = tmp_path / "cache"
 
-    @cache_file(cache_dir, backend="rds")
+    @cache_file(cache_dir, backend="pickle")
     def f(x):
         track_file(tf)
         return x
@@ -212,13 +212,13 @@ def test_prune_deletes_old_files(tmp_path):
     cache_dir = tmp_path / "cache"
     cache_dir.mkdir()
 
-    old_file = cache_dir / "old_func.abc.rds"
+    old_file = cache_dir / "old_func.abc.pkl"
     old_file.touch()
     # Backdate to 60 days ago
     old_time = time.time() - 60 * 24 * 3600
     os.utime(old_file, (old_time, old_time))
 
-    new_file = cache_dir / "new_func.def.rds"
+    new_file = cache_dir / "new_func.def.pkl"
     new_file.touch()
 
     cache_prune(cache_dir, days_old=30)

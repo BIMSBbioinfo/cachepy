@@ -9,7 +9,7 @@ from cachepy import cache_tree_reset
 from cachepy.cache_file import _file_state_cache
 
 
-def count_cache_entries(cache_dir, pattern=r"\.(rds|qs)$"):
+def count_cache_entries(cache_dir, pattern=r"\.pkl$"):
     """Count cache files in cache_dir, excluding graph files."""
     cache_dir = Path(cache_dir)
     if not cache_dir.exists():
