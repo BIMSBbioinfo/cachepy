@@ -17,6 +17,7 @@ from cachepy import (
     cache_tree_save,
     cache_tree_load,
     track_file,
+    plot_cache_graph,
 )
 from cachepy.cache_file import (
     _cache_tree_call_stack,
@@ -225,3 +226,102 @@ def test_prune_deletes_old_files(tmp_path):
 
     assert not old_file.exists()
     assert new_file.exists()
+
+
+# ============================================================================
+# Section 6: plot_cache_graph
+# ============================================================================
+
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+
+def test_plot_cache_graph_empty():
+    """plot_cache_graph on empty graph returns a figure."""
+    fig = plot_cache_graph()
+    assert fig is not None
+    assert hasattr(fig, "savefig")
+    plt.close(fig)
+
+
+def test_plot_cache_graph_basic(tmp_path):
+    """plot_cache_graph shows nodes for cached functions."""
+    cache_dir = tmp_path / "cache"
+
+    @cache_file(cache_dir)
+    def inner(x):
+        return x + 1
+
+    @cache_file(cache_dir)
+    def outer(x):
+        return inner(x) * 2
+
+    outer(5)
+
+    nodes = cache_tree_nodes()
+    assert len(nodes) >= 2
+
+    fig = plot_cache_graph()
+    assert fig is not None
+    # figure should have at least one axes
+    assert len(fig.axes) >= 1
+    plt.close(fig)
+
+
+def test_plot_cache_graph_save_png(tmp_path):
+    """plot_cache_graph saves to a file when output is given."""
+    cache_dir = tmp_path / "cache"
+
+    @cache_file(cache_dir)
+    def step(x):
+        return x
+
+    step(1)
+
+    out_file = str(tmp_path / "graph.png")
+    fig = plot_cache_graph(output=out_file)
+    plt.close(fig)
+
+    assert Path(out_file).exists()
+    assert Path(out_file).stat().st_size > 0
+
+
+def test_plot_cache_graph_stale_detection(tmp_path):
+    """plot_cache_graph detects stale nodes from changed tracked files."""
+    cache_dir = tmp_path / "cache"
+    data_file = tmp_path / "data.txt"
+    data_file.write_text("original")
+
+    @cache_file(cache_dir)
+    def read_data(path):
+        track_file(path)
+        return Path(path).read_text()
+
+    read_data(str(data_file))
+
+    # modify the tracked file
+    _file_state_cache.clear()
+    data_file.write_text("modified")
+
+    out_file = str(tmp_path / "stale_graph.png")
+    fig = plot_cache_graph(output=out_file, highlight_stale=True)
+    plt.close(fig)
+
+    assert Path(out_file).exists()
+
+
+def test_plot_cache_graph_no_matplotlib(tmp_path, monkeypatch):
+    """plot_cache_graph raises ImportError when matplotlib is missing."""
+    import builtins
+    real_import = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if name == "matplotlib":
+            raise ImportError("mocked")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", mock_import)
+
+    with pytest.raises(ImportError, match="matplotlib"):
+        plot_cache_graph()

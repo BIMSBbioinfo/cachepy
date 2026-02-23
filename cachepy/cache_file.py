@@ -327,6 +327,267 @@ def cache_tree_changed_files() -> Dict[str, Dict[str, Any]]:
 
 
 # ============================================================================
+# plot_cache_graph — visualise the live dependency DAG
+# ============================================================================
+
+def plot_cache_graph(
+    output: Optional[str] = None,
+    highlight_stale: bool = True,
+):
+    """
+    Plot the current cache dependency graph.
+
+    Requires ``matplotlib`` (optional dependency).
+    Nodes are coloured by state:
+
+    - **navy** (#1D3557): cached result present on disk
+    - **amber** (#FBBC04): stale — a tracked file changed since caching
+    - **gray** (#ADB5BD): cache file missing
+    - **blue** (#457B9D): tracked-file node
+
+    Parameters
+    ----------
+    output : str or None
+        If a file path (e.g. ``"graph.png"``), save the figure there.
+        If ``None``, call ``plt.show()``.
+    highlight_stale : bool
+        When True (default), check tracked files for changes and
+        colour stale nodes in amber.
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+    """
+    try:
+        import matplotlib
+        matplotlib.use("Agg")          # headless-safe; overridden by show()
+        import matplotlib.pyplot as plt
+        from matplotlib.patches import FancyBboxPatch, Polygon, FancyArrowPatch
+    except ImportError:
+        raise ImportError(
+            "plot_cache_graph requires matplotlib.  "
+            "Install it with:  pip install matplotlib"
+        )
+
+    # -- gather data ---------------------------------------------------------
+    nodes = cache_tree_nodes()
+    if not nodes:
+        fig, ax = plt.subplots(figsize=(6, 3))
+        ax.text(0.5, 0.5, "(empty cache graph)", ha="center", va="center",
+                fontsize=14, color="#999999")
+        ax.axis("off")
+        if output:
+            fig.savefig(output, dpi=120, bbox_inches="tight")
+        return fig
+
+    stale_ids: set = set()
+    if highlight_stale:
+        stale_ids = set(cache_tree_changed_files().keys())
+
+    # -- determine node states -----------------------------------------------
+    CACHED_CLR  = {"fill": "#1D3557", "stroke": "#0D1B2A", "text": "#FFFFFF"}
+    STALE_CLR   = {"fill": "#FFF8D5", "stroke": "#FBBC04", "text": "#7C6200"}
+    MISSING_CLR = {"fill": "#F1F3F5", "stroke": "#ADB5BD", "text": "#6C757D"}
+    FILE_CLR    = {"fill": "#E8F0FE", "stroke": "#457B9D", "text": "#1A3A5C"}
+
+    node_colors: Dict[str, dict] = {}
+    node_labels: Dict[str, str] = {}
+    # collect file-dependency nodes separately
+    file_nodes: Dict[str, set] = {}  # file_path -> set of referencing node ids
+
+    for nid, nd in nodes.items():
+        label = nd.get("fname", nid.split(":")[0] if ":" in nid else nid)
+        node_labels[nid] = label
+
+        if nid in stale_ids:
+            node_colors[nid] = STALE_CLR
+        elif nd.get("outfile") and Path(nd["outfile"]).exists():
+            node_colors[nid] = CACHED_CLR
+        else:
+            node_colors[nid] = MISSING_CLR
+
+        for fp in nd.get("files", []):
+            fp_str = str(fp)
+            file_nodes.setdefault(fp_str, set()).add(nid)
+
+    # -- build adjacency for topological sort --------------------------------
+    children_map: Dict[str, List[str]] = {nid: [] for nid in nodes}
+    parents_map: Dict[str, List[str]] = {nid: [] for nid in nodes}
+    edges: List[tuple] = []
+
+    for nid, nd in nodes.items():
+        for child_id in nd.get("children", []):
+            if child_id in nodes:
+                children_map[nid].append(child_id)
+                parents_map[child_id].append(nid)
+                edges.append((nid, child_id))
+
+    # add file-dependency pseudo-nodes
+    all_node_ids = list(nodes.keys())
+    for fp_str, referencing in file_nodes.items():
+        fnode_id = f"__file__{fp_str}"
+        node_labels[fnode_id] = Path(fp_str).name
+        if fnode_id in stale_ids or any(r in stale_ids for r in referencing):
+            node_colors[fnode_id] = STALE_CLR
+        else:
+            node_colors[fnode_id] = FILE_CLR
+        all_node_ids.append(fnode_id)
+        children_map[fnode_id] = list(referencing)
+        for r in referencing:
+            parents_map.setdefault(r, []).append(fnode_id)
+            edges.append((fnode_id, r))
+
+    # -- topological layer assignment ----------------------------------------
+    in_degree = {n: 0 for n in all_node_ids}
+    adj = {n: [] for n in all_node_ids}
+    for src, dst in edges:
+        if src in adj:
+            adj[src].append(dst)
+            in_degree[dst] = in_degree.get(dst, 0) + 1
+
+    # Kahn's algorithm
+    queue = [n for n in all_node_ids if in_degree.get(n, 0) == 0]
+    layers: Dict[str, int] = {}
+    while queue:
+        nxt = []
+        for n in queue:
+            layers[n] = layers.get(n, 0)
+            for child in adj.get(n, []):
+                layers[child] = max(layers.get(child, 0), layers[n] + 1)
+                in_degree[child] -= 1
+                if in_degree[child] == 0:
+                    nxt.append(child)
+        queue = nxt
+
+    # fallback for any unvisited nodes (cycles)
+    for n in all_node_ids:
+        if n not in layers:
+            layers[n] = 0
+
+    # -- compute positions ---------------------------------------------------
+    max_layer = max(layers.values()) if layers else 0
+    layer_buckets: Dict[int, List[str]] = {}
+    for n, lay in layers.items():
+        layer_buckets.setdefault(lay, []).append(n)
+
+    H_SPACING = 2.5
+    V_SPACING = 1.2
+    positions: Dict[str, tuple] = {}
+    for lay, members in layer_buckets.items():
+        x = lay * H_SPACING
+        n_members = len(members)
+        for i, nid in enumerate(sorted(members)):
+            y = (i - (n_members - 1) / 2) * V_SPACING
+            positions[nid] = (x, y)
+
+    # -- draw ----------------------------------------------------------------
+    xs = [p[0] for p in positions.values()]
+    ys = [p[1] for p in positions.values()]
+    x_margin = 1.5
+    y_margin = 1.0
+    fig_w = max(6, (max(xs) - min(xs)) + 2 * x_margin + 2)
+    fig_h = max(3, (max(ys) - min(ys)) + 2 * y_margin + 2)
+
+    fig, ax = plt.subplots(figsize=(min(fig_w, 16), min(fig_h, 10)))
+    ax.set_xlim(min(xs) - x_margin, max(xs) + x_margin)
+    ax.set_ylim(min(ys) - y_margin - 0.5, max(ys) + y_margin + 0.8)
+    ax.set_aspect("equal")
+    ax.axis("off")
+    fig.patch.set_facecolor("#FFFFFF")
+    ax.set_facecolor("#FFFFFF")
+
+    ax.text(0.5, 0.97, "cachepy — Cache Graph",
+            transform=ax.transAxes, ha="center", va="top",
+            fontsize=14, fontweight="bold", color="#1D3557",
+            fontfamily="sans-serif")
+
+    NODE_W, NODE_H = 1.5, 0.6
+    FILE_W, FILE_H = 1.1, 0.5
+
+    def _draw_func_node(nid):
+        x, y = positions[nid]
+        c = node_colors.get(nid, MISSING_CLR)
+        box = FancyBboxPatch(
+            (x - NODE_W/2, y - NODE_H/2), NODE_W, NODE_H,
+            boxstyle="round,pad=0.08",
+            facecolor=c["fill"], edgecolor=c["stroke"],
+            linewidth=2, zorder=3)
+        ax.add_patch(box)
+        ax.text(x, y, node_labels.get(nid, nid), ha="center", va="center",
+                fontsize=9, color=c["text"], zorder=5, fontfamily="sans-serif")
+
+    def _draw_file_node(nid):
+        x, y = positions[nid]
+        c = node_colors.get(nid, FILE_CLR)
+        fold = 0.15
+        verts = [
+            (x - FILE_W/2, y - FILE_H/2),
+            (x + FILE_W/2 - fold, y - FILE_H/2),
+            (x + FILE_W/2, y - FILE_H/2 + fold),
+            (x + FILE_W/2, y + FILE_H/2),
+            (x - FILE_W/2, y + FILE_H/2),
+        ]
+        poly = Polygon(verts, closed=True,
+                        facecolor=c["fill"], edgecolor=c["stroke"],
+                        linewidth=2, zorder=3)
+        ax.add_patch(poly)
+        ax.text(x, y, node_labels.get(nid, nid), ha="center", va="center",
+                fontsize=8, color=c["text"], zorder=5, fontfamily="sans-serif")
+
+    def _draw_edge(src, dst, dashed=False):
+        sx, sy = positions[src]
+        dx, dy = positions[dst]
+        is_file = src.startswith("__file__")
+        arrow = FancyArrowPatch(
+            (sx, sy), (dx, dy),
+            arrowstyle="-|>", mutation_scale=14,
+            color="#888888", linewidth=1.5,
+            linestyle="--" if is_file or dashed else "-",
+            shrinkA=25, shrinkB=25, zorder=2,
+            connectionstyle="arc3,rad=0.0")
+        ax.add_patch(arrow)
+
+    # edges first (below nodes)
+    for src, dst in edges:
+        if src in positions and dst in positions:
+            _draw_edge(src, dst)
+
+    # then nodes
+    for nid in all_node_ids:
+        if nid not in positions:
+            continue
+        if nid.startswith("__file__"):
+            _draw_file_node(nid)
+        else:
+            _draw_func_node(nid)
+
+    # legend
+    legend_items = [
+        (CACHED_CLR,  "Cached"),
+        (STALE_CLR,   "Stale"),
+        (MISSING_CLR, "Missing"),
+        (FILE_CLR,    "File dep"),
+    ]
+    for i, (c, label) in enumerate(legend_items):
+        lx = min(xs) - x_margin + 0.2 + i * 1.8
+        ly = min(ys) - y_margin
+        box = FancyBboxPatch(
+            (lx, ly), 0.3, 0.25, boxstyle="round,pad=0.03",
+            facecolor=c["fill"], edgecolor=c["stroke"],
+            linewidth=1.3, zorder=3)
+        ax.add_patch(box)
+        ax.text(lx + 0.45, ly + 0.125, label, ha="left", va="center",
+                fontsize=8, color="#333", fontfamily="sans-serif")
+
+    plt.tight_layout()
+
+    if output:
+        fig.savefig(output, dpi=120, bbox_inches="tight",
+                    facecolor="#FFFFFF", edgecolor="none")
+    return fig
+
+
+# ============================================================================
 # cache_default_dir + pruning (R: cacheR_default_dir, cachePrune)
 # ============================================================================
 

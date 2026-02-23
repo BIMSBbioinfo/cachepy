@@ -7,7 +7,8 @@ from .cache_file import (
     cache_tree_save,
     cache_tree_load,
     cache_tree_changed_files,
-    _find_path_specs
+    plot_cache_graph,
+    _find_path_specs,
 )
 
 __all__ = [
@@ -19,5 +20,6 @@ __all__ = [
     "cache_tree_save",
     "cache_tree_load",
     "cache_tree_changed_files",
-    "_find_path_specs"
+    "plot_cache_graph",
+    "_find_path_specs",
 ]
