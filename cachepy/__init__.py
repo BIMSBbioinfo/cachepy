@@ -1,5 +1,6 @@
 from .cache_file import (
     cache_file,
+    CacheDecorator,
     track_file,
     cache_tree_nodes,
     cache_tree_reset,
@@ -11,6 +12,7 @@ from .cache_file import (
 
 __all__ = [
     "cache_file",
+    "CacheDecorator",
     "track_file",
     "cache_tree_nodes",
     "cache_tree_reset",

@@ -846,6 +846,67 @@ def _get_package_versions(import_names: Set[str], func: Callable) -> Dict[str, s
 
 
 # ============================================================================
+# CacheDecorator — reusable decorator object
+# ============================================================================
+
+class CacheDecorator:
+    """Reusable caching decorator bound to a directory and default options.
+
+    Supports three usage patterns::
+
+        cf = cache_file("/tmp/cache")
+
+        # 1. Direct decoration
+        @cf
+        def step1(x): ...
+
+        # 2. Per-function overrides
+        @cf(verbose=True, version="2.0")
+        def step2(x): ...
+
+        # 3. Programmatic wrapping
+        step3_cached = cf(step3)
+    """
+
+    # Names of keyword arguments accepted by cache_file().
+    _OPTION_KEYS = frozenset({
+        "cache_dir", "backend", "file_args", "ignore_args", "file_pattern",
+        "env_vars", "algo", "version", "depends_on_files", "depends_on_vars",
+        "verbose", "hash_file_paths",
+    })
+
+    def __init__(self, _decorator_fn, **defaults):
+        # _decorator_fn: the inner ``decorator`` closure returned by
+        # ``_cache_file_impl``.  ``defaults`` are the keyword arguments
+        # originally passed to ``cache_file`` so we can merge overrides.
+        self._decorator_fn = _decorator_fn
+        self._defaults = defaults
+
+    def __call__(self, *args, **kwargs):
+        # Case 1: @cf  — called with a single callable, no kwargs
+        if len(args) == 1 and callable(args[0]) and not kwargs:
+            return self._decorator_fn(args[0])
+
+        # Case 2: @cf(verbose=True, ...) — called with option overrides
+        if args:
+            raise TypeError(
+                "CacheDecorator accepts either a single callable (direct "
+                "decoration) or keyword-only option overrides, not "
+                "positional arguments mixed with keywords."
+            )
+        unknown = set(kwargs) - self._OPTION_KEYS
+        if unknown:
+            raise TypeError(f"Unknown cache_file options: {unknown}")
+        merged = {**self._defaults, **kwargs}
+        return cache_file(**merged)
+
+    def __repr__(self):
+        opts = ", ".join(f"{k}={v!r}" for k, v in self._defaults.items()
+                         if v is not None)
+        return f"CacheDecorator({opts})"
+
+
+# ============================================================================
 # cacheFile -> cache_file decorator
 # ============================================================================
 
@@ -862,18 +923,24 @@ def cache_file(
     depends_on_vars: Optional[Dict[str, Any]] = None,
     verbose: bool = False,
     hash_file_paths: bool = True,
-) -> Callable[[Callable], Callable]:
+) -> CacheDecorator:
     """
     Disk-backed caching decorator (Python analogue of R's cacheFile).
-    Usage:
+
+    Returns a :class:`CacheDecorator` that can be reused across functions::
+
+        cf = cache_file("/tmp/cache")
+
+        @cf
+        def step1(x): ...
+
+        @cf(verbose=True)
+        def step2(x): ...
+
+    Or used as a one-shot decorator::
 
         @cache_file("/tmp/cache")
-        def f(x, y=1):
-            ...
-
-    or
-
-        f_cached = cache_file("/tmp/cache")(f)
+        def f(x, y=1): ...
     """
     if cache_dir is None:
         cache_dir_path = cache_default_dir()
@@ -1200,7 +1267,14 @@ def cache_file(
         wrapper.__wrapped__ = f  # for inspect
         return wrapper
 
-    return decorator
+    defaults = dict(
+        cache_dir=cache_dir, backend=backend, file_args=file_args,
+        ignore_args=ignore_args, file_pattern=file_pattern,
+        env_vars=env_vars, algo=algo, version=version,
+        depends_on_files=depends_on_files, depends_on_vars=depends_on_vars,
+        verbose=verbose, hash_file_paths=hash_file_paths,
+    )
+    return CacheDecorator(decorator, **defaults)
 
 
 # R name alias if you want to keep it
