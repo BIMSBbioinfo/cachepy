@@ -13,7 +13,7 @@ function only if necessary. Results are cached to disk as pickle files.
 It's like snakemake/nextflow, but on the fly.
 
 <p align="center">
-  <img src="../Results/cache_graph_animation.gif" alt="cachepy cache graph animation" width="700"/>
+  <img src="docs/assets/cache_graph_animation.gif" alt="cachepy cache graph animation" width="700"/>
 </p>
 
 ## What is it useful for?
