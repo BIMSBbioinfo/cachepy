@@ -969,7 +969,7 @@ def test_warns_on_corrupt_cache_file(tmp_path):
     f(100)
 
     # Corrupt the cache file
-    pkl_files = list(cache_dir.glob("*.pkl"))
+    pkl_files = [p for p in cache_dir.glob("*.pkl") if not p.name.startswith("graph.")]
     assert len(pkl_files) == 1
     pkl_files[0].write_bytes(b"CORRUPT")
 
@@ -1285,5 +1285,5 @@ def test_file_locking_runs_without_error(tmp_path):
     result = f(1)
     assert result == 2
 
-    pkl_files = [p for p in cache_dir.iterdir() if p.suffix == ".pkl"]
+    pkl_files = [p for p in cache_dir.iterdir() if p.suffix == ".pkl" and not p.name.startswith("graph.")]
     assert len(pkl_files) == 1

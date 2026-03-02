@@ -64,7 +64,7 @@ def test_stores_pkgs_metadata_for_imported_modules(tmp_path, mock_pkg_cleanup):
     cached = cache_file(cache_dir=cache_dir, backend="pickle")(_module_level_pkg_user)
     cached(1)
 
-    files = list(cache_dir.glob("*.pkl"))
+    files = [p for p in cache_dir.glob("*.pkl") if not p.name.startswith("graph.")]
     assert len(files) == 1
 
     with open(files[0], "rb") as f:
@@ -106,7 +106,7 @@ def test_pkgs_metadata_is_empty_for_builtins(tmp_path):
 
     simple_math(5)
 
-    files = list(cache_dir.glob("*.pkl"))
+    files = [p for p in cache_dir.glob("*.pkl") if not p.name.startswith("graph.")]
     assert len(files) == 1
 
     with open(files[0], "rb") as f:
@@ -132,7 +132,7 @@ def test_captures_multiple_packages(tmp_path, mock_pkg_cleanup):
 
     multi_dep_fun(100)
 
-    files = list(cache_dir.glob("*.pkl"))
+    files = [p for p in cache_dir.glob("*.pkl") if not p.name.startswith("graph.")]
     assert len(files) == 1
 
     with open(files[0], "rb") as f:
@@ -156,7 +156,7 @@ def test_detects_global_imports(tmp_path, mock_pkg_cleanup):
     cached_fun = cache_file(cache_dir=cache_dir, backend="pickle")(my_fun)
     cached_fun(1)
 
-    files = list(cache_dir.glob("*.pkl"))
+    files = [p for p in cache_dir.glob("*.pkl") if not p.name.startswith("graph.")]
     assert len(files) == 1
 
     with open(files[0], "rb") as f:
