@@ -908,6 +908,11 @@ def cache_list(cache_dir: os.PathLike | str):
             fname = None
         else:
             fname = info["meta"].get("fname")
+        # fallback: extract fname from filename pattern "fname.hash.ext"
+        if fname is None:
+            parts = fpath.stem.rsplit(".", 1)
+            if len(parts) == 2:
+                fname = parts[0]
         rows.append(
             {
                 "file": fpath.name,
