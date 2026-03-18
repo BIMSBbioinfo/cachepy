@@ -35,6 +35,7 @@ nav:
       - Feature Showcase: tutorials/showcase.md
       - scRNA-seq Pipeline: tutorials/scrnaseq.md
       - PyTorch Caching: tutorials/pytorch.md
+      - Cache Graph: tutorials/graph.md
 
 plugins:
   - search
