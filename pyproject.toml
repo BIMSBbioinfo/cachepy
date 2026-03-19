@@ -10,7 +10,7 @@ readme = "README.md"
 license = "GPL-3.0-or-later"
 requires-python = ">=3.9"
 authors = [
-    {name = "Vedran Franke", email = "vedran.franke@gmail.com"},
+    {name = "Vedran Franke", email = "vedran.franke@mdc-berlin.de"},
 ]
 keywords = ["caching", "memoization", "bioinformatics", "reproducibility", "pipeline"]
 classifiers = [
