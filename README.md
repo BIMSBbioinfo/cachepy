@@ -28,14 +28,12 @@ It's like snakemake/nextflow, but on the fly.
 ### Installation
 
 ```bash
-pip install -e path/to/cachepy
+pip install pycacher
 ```
 
-Or add the parent directory to `sys.path`:
+The PyPI package is called `pycacher`, but the import name is `cachepy`:
 
 ```python
-import sys
-sys.path.insert(0, "/path/to/cachepy/..")
 from cachepy import cache_file
 ```
 
