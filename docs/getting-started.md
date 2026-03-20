@@ -11,7 +11,7 @@ pip install cachepy
 Or install from source for development:
 
 ```bash
-git clone https://github.com/BIMSBbioinfo/cachepy.git
+git clone https://github.com/BIMSBbioinfo/pycacher.git
 cd cachepy
 pip install -e ".[dev]"
 ```

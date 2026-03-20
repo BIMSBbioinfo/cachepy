@@ -34,10 +34,10 @@ docs = ["mkdocs-material", "mkdocstrings[python]"]
 lock = ["filelock"]
 
 [project.urls]
-Homepage = "https://github.com/BIMSBbioinfo/cachepy"
+Homepage = "https://github.com/BIMSBbioinfo/pycacher"
 Documentation = "https://BIMSBbioinfo.github.io/cachepy/"
-Repository = "https://github.com/BIMSBbioinfo/cachepy"
-Issues = "https://github.com/BIMSBbioinfo/cachepy/issues"
+Repository = "https://github.com/BIMSBbioinfo/pycacher"
+Issues = "https://github.com/BIMSBbioinfo/pycacher/issues"
 
 [tool.setuptools.packages.find]
 include = ["cachepy*"]
