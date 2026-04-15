@@ -20,10 +20,10 @@
        (method git-fetch)
        (uri (git-reference
              (url "https://github.com/BIMSBbioinfo/pycacheR")
-             (commit (string-append "v" version))))
+             (commit "c612e31")))
        (file-name (git-file-name name version))
        (sha256
-        (base32 "0sybpkja66yc5iy881lcxm7sri5ywqp3xc74d6cpmfxjijc4lv2x"))))
+        (base32 "1kaizxvj0zdv6059s9nbpxkpncs7xjf508v4s889j3zazm1rj6k4"))))
     (build-system pyproject-build-system)
     (arguments
      '(#:tests? #f))
